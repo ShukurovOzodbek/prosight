@@ -8,19 +8,12 @@ function snakeCase(str: string): string {
         .replace(/^_/, '');
 }
 
-export class SnakeNamingStrategy
-    extends DefaultNamingStrategy
-    implements NamingStrategyInterface
-{
+export class SnakeNamingStrategy extends DefaultNamingStrategy implements NamingStrategyInterface {
     tableName(className: string, customName?: string) {
         return customName || snakeCase(className);
     }
 
-    columnName(
-        propertyName: string,
-        customName: string | undefined,
-        embeddedPrefixes: string[],
-    ) {
+    columnName(propertyName: string, customName: string | undefined, embeddedPrefixes: string[]) {
         return (
             snakeCase(embeddedPrefixes.concat('').join('_')) +
             (customName || snakeCase(propertyName))
@@ -35,21 +28,13 @@ export class SnakeNamingStrategy
         return snakeCase(`${relationName}_${referencedColumnName}`);
     }
 
-    joinTableName(
-        firstTableName: string,
-        secondTableName: string,
-        firstPropertyName: string,
-    ) {
+    joinTableName(firstTableName: string, secondTableName: string, firstPropertyName: string) {
         return snakeCase(
             `${firstTableName}_${firstPropertyName.replace(/\./g, '_')}_${secondTableName}`,
         );
     }
 
-    joinTableColumnName(
-        tableName: string,
-        propertyName: string,
-        columnName?: string,
-    ) {
+    joinTableColumnName(tableName: string, propertyName: string, columnName?: string) {
         return snakeCase(`${tableName}_${columnName || propertyName}`);
     }
 

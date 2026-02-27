@@ -1,13 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import {
-    IsOptional,
-    IsInt,
-    IsString,
-    IsEnum,
-    IsArray,
-    Min,
-    Max,
-} from 'class-validator';
+import { IsOptional, IsInt, IsString, IsEnum, IsArray, Min, Max } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 import { parseIntArray } from 'src/utils/helpers';
 
@@ -27,7 +19,6 @@ export enum SortOrder {
     Asc = 'asc',
     Desc = 'desc',
 }
-
 
 export class LocusQueryDto {
     @ApiPropertyOptional({ description: 'Filter by locus id(s)', example: '1,2,3' })
@@ -50,7 +41,10 @@ export class LocusQueryDto {
     @IsInt({ each: true, message: 'regionId must be an integer or comma-separated integers' })
     regionId?: number[];
 
-    @ApiPropertyOptional({ description: 'Filter by membership status (rlm table)', example: 'member' })
+    @ApiPropertyOptional({
+        description: 'Filter by membership status (rlm table)',
+        example: 'member',
+    })
     @IsOptional()
     @IsString()
     membershipStatus?: string;
@@ -70,7 +64,12 @@ export class LocusQueryDto {
     @Min(1)
     page?: number = 1;
 
-    @ApiPropertyOptional({ description: 'Rows per page', default: 1000, minimum: 1, maximum: 10000 })
+    @ApiPropertyOptional({
+        description: 'Rows per page',
+        default: 1000,
+        minimum: 1,
+        maximum: 10000,
+    })
     @IsOptional()
     @Type(() => Number)
     @IsInt()

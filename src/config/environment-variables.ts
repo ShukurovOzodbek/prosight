@@ -2,7 +2,7 @@ import { IsNotEmpty, IsNumberString, IsString } from 'class-validator';
 
 export class EnvironmentVariables {
     @IsNotEmpty()
-	@IsNumberString()
+    @IsNumberString()
     PORT!: number;
 
     @IsNotEmpty()

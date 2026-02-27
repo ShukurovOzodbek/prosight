@@ -2,12 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsOrder, FindOptionsWhere, In, Repository } from 'typeorm';
 import { RncLocus } from './entities/rnc-locus.entity';
-import {
-    LocusQueryDto,
-    SideloadOption,
-    LocusSortField,
-    SortOrder,
-} from './dto/locus-query.dto';
+import { LocusQueryDto, SideloadOption, LocusSortField, SortOrder } from './dto/locus-query.dto';
 
 @Injectable()
 export class LocusService {
