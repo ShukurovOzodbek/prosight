@@ -18,6 +18,10 @@ async function bootstrap() {
         .setTitle('Prosight API')
         .setDescription('API documentation for Prosight application')
         .setVersion('1.0')
+        .addBearerAuth(
+            { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', in: 'header' },
+            'access_token',
+        )
         .addTag('docs')
         .build();
     const document = SwaggerModule.createDocument(app, config);

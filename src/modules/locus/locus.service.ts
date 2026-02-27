@@ -3,6 +3,8 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { FindOptionsOrder, FindOptionsWhere, In, Repository } from 'typeorm';
 import { RncLocus } from './entities/rnc-locus.entity';
 import { LocusQueryDto, SideloadOption, LocusSortField, SortOrder } from './dto/locus-query.dto';
+import { LocusUser } from './interfaces/locus-user.interface';
+import { ALLOWED_REGION_IDS_FOR_LIMITED_ROLE } from './constants';
 
 @Injectable()
 export class LocusService {
@@ -11,22 +13,83 @@ export class LocusService {
         private readonly locusRepository: Repository<RncLocus>,
     ) {}
 
-    async getLocus(query: LocusQueryDto) {
-        const {
-            ids,
-            assemblyId,
-            regionId: regionIds,
-            membershipStatus,
-            sideload,
-            page = 1,
-            limit = 1000,
-            sortBy = LocusSortField.Id,
-            sortOrder = SortOrder.Asc,
-        } = query;
+    async getLocus(query: LocusQueryDto, user: LocusUser) {
+        const role = user.role;
 
-        const shouldSideload = sideload === SideloadOption.LocusMembers;
-        const needsMemberFilter = regionIds?.length || membershipStatus;
+        const page = query.page ?? 1;
+        const limit = query.limit ?? 1000;
+        const sortBy = query.sortBy ?? LocusSortField.Id;
+        const sortOrder = query.sortOrder ?? SortOrder.Asc;
 
+        const isSideloadAllowed = role === 'admin';
+        const requestedSideload = query.sideload === SideloadOption.LocusMembers;
+        const shouldSideloadLocusMembers = isSideloadAllowed && requestedSideload;
+
+        let effectiveRegionIds: number[] | undefined;
+        let effectiveMembershipStatus: string | undefined;
+        let needsLocusMembersJoin: boolean;
+
+        if (role === 'normal') {
+            effectiveRegionIds = undefined;
+            effectiveMembershipStatus = undefined;
+            needsLocusMembersJoin = false;
+        } else if (role === 'limited') {
+            effectiveRegionIds = [...ALLOWED_REGION_IDS_FOR_LIMITED_ROLE];
+            effectiveMembershipStatus = undefined;
+            needsLocusMembersJoin = true;
+        } else {
+            effectiveRegionIds = query.regionId;
+            effectiveMembershipStatus = query.membershipStatus;
+            needsLocusMembersJoin =
+                (effectiveRegionIds?.length ?? 0) > 0 || !!effectiveMembershipStatus;
+        }
+
+        const shouldLoadLocusMembersRelation = shouldSideloadLocusMembers || needsLocusMembersJoin;
+
+        const whereClause = this.buildWhereClause(
+            query.ids,
+            query.assemblyId,
+            effectiveRegionIds,
+            effectiveMembershipStatus,
+            shouldLoadLocusMembersRelation,
+        );
+
+        const orderClause: FindOptionsOrder<RncLocus> = {
+            [sortBy]: sortOrder,
+        };
+
+        const findOptions = {
+            where: whereClause,
+            relations: {
+                locusMembers: shouldLoadLocusMembersRelation,
+            },
+            skip: (page - 1) * limit,
+            take: limit,
+            order: orderClause,
+        };
+
+        const [list, total] = await Promise.all([
+            this.locusRepository.find(findOptions),
+            this.locusRepository.count({ where: whereClause }),
+        ]);
+
+        const totalPages = Math.ceil(total / limit) || 1;
+
+        return {
+            data: list,
+            total,
+            currentPage: page,
+            totalPages,
+        };
+    }
+
+    private buildWhereClause(
+        ids: number[] | undefined,
+        assemblyId: number | undefined,
+        regionIds: number[] | undefined,
+        membershipStatus: string | undefined,
+        includeLocusMembersCondition: boolean,
+    ): FindOptionsWhere<RncLocus> {
         const where: FindOptionsWhere<RncLocus> = {};
 
         if (ids?.length) {
@@ -35,7 +98,8 @@ export class LocusService {
         if (assemblyId != null) {
             where.assemblyId = assemblyId as unknown as string;
         }
-        if (needsMemberFilter) {
+
+        if (includeLocusMembersCondition && (regionIds?.length || membershipStatus)) {
             where.locusMembers = {};
             if (regionIds?.length) {
                 where.locusMembers.regionId = In(regionIds);
@@ -45,64 +109,6 @@ export class LocusService {
             }
         }
 
-        const order: FindOptionsOrder<RncLocus> = {
-            [sortBy]: sortOrder,
-        };
-
-        const [list, total] = await Promise.all([
-            this.locusRepository.find({
-                where,
-                relations: {
-                    locusMembers: shouldSideload || !!needsMemberFilter,
-                },
-                skip: (page - 1) * limit,
-                take: limit,
-                order,
-            }),
-            this.locusRepository.count({ where }),
-        ]);
-
-        const distinctList = needsMemberFilter
-            ? Array.from(new Map(list.map((l) => [l.id, l])).values())
-            : list;
-
-        const totalPages = Math.ceil(total / limit) || 1;
-
-        const data = shouldSideload
-            ? distinctList.map((locus) => ({
-                  id: locus.id,
-                  assemblyId: locus.assemblyId,
-                  locusName: locus.locusName,
-                  publicLocusName: locus.publicLocusName,
-                  chromosome: locus.chromosome,
-                  strand: locus.strand,
-                  locusStart: locus.locusStart,
-                  locusStop: locus.locusStop,
-                  memberCount: locus.memberCount,
-                  locusMembers: locus.locusMembers?.map((m) => ({
-                      locusMemberId: m.locusMemberId,
-                      regionId: m.regionId,
-                      locusId: m.locusId,
-                      membershipStatus: m.membershipStatus,
-                  })),
-              }))
-            : distinctList.map((locus) => ({
-                  id: locus.id,
-                  assemblyId: locus.assemblyId,
-                  locusName: locus.locusName,
-                  publicLocusName: locus.publicLocusName,
-                  chromosome: locus.chromosome,
-                  strand: locus.strand,
-                  locusStart: locus.locusStart,
-                  locusStop: locus.locusStop,
-                  memberCount: locus.memberCount,
-              }));
-
-        return {
-            data,
-            total,
-            currentPage: page,
-            totalPages,
-        };
+        return where;
     }
 }
